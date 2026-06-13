@@ -4,9 +4,6 @@ import { UCODE_APP_ID, UCODE_ENVIRONMENT_ID, UCODE_INVOKE_URL } from '@/config/u
 const API_URL = import.meta.env.VITE_API_URL ?? UCODE_INVOKE_URL
 const ENVIRONMENT_ID = import.meta.env.VITE_ENVIRONMENT_ID ?? UCODE_ENVIRONMENT_ID
 const APP_ID = import.meta.env.VITE_APP_ID ?? UCODE_APP_ID
-const IS_LOCAL_API =
-  (import.meta.env.VITE_API_URL ?? UCODE_INVOKE_URL).includes('localhost') ||
-  import.meta.env.VITE_API_URL === '/ucode'
 
 const ACCESS_TOKEN_KEY = 'matrixecom_access_token'
 const REFRESH_TOKEN_KEY = 'matrixecom_refresh_token'
@@ -63,8 +60,8 @@ function buildRequestBody(method: string, objectData: object, userId?: string | 
   return {
     data: {
       method,
+      ...(userId ? { user_id: userId } : {}),
       object_data: objectData,
-      ...(IS_LOCAL_API && userId ? { user_id: userId } : {}),
     },
   }
 }
