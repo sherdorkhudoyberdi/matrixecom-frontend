@@ -71,6 +71,5 @@ export function getDefaultSelections(variants: ProductVariant[]): AttributeSelec
 
 export function variantImage(variant: ProductVariant | null, fallback?: string): string | undefined {
   if (!variant) return fallback
-  const main = variant.images?.find((img) => img.is_main) ?? variant.images?.[0]
-  return main?.image ?? fallback
+  return variant.images?.[0] ?? fallback
 }

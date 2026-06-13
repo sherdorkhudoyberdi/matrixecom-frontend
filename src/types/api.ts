@@ -81,22 +81,9 @@ export interface ProductSpecification {
   sort_order?: number
 }
 
-export interface ProductImage {
-  guid?: string
-  url: string
-  is_main?: boolean
-  sort_order?: number
-}
-
 export interface VariantAttribute {
   name: string
   value: string
-}
-
-export interface VariantImage {
-  image: string
-  is_main?: boolean
-  sort_order?: number
 }
 
 export interface ProductVariant {
@@ -108,7 +95,7 @@ export interface ProductVariant {
   in_stock?: boolean
   is_active?: boolean
   attributes?: VariantAttribute[]
-  images?: VariantImage[]
+  images?: string[]
 }
 
 export interface ProductDetail {
@@ -125,7 +112,7 @@ export interface ProductDetail {
   category_path?: Category[]
   brand?: Brand
   specifications?: ProductSpecification[]
-  images?: ProductImage[]
+  images?: string[]
   variants?: ProductVariant[]
 }
 
@@ -239,6 +226,7 @@ export interface AdminProduct {
   categories_id?: string
   brands_id?: string
   is_active?: boolean
+  images?: string[]
   review_count?: number
   created_at?: string
 }

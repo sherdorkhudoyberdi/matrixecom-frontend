@@ -56,11 +56,7 @@ export function AdminProductEditPage() {
     enabled: !isNew && !!id,
   })
 
-  const { data: images } = useQuery({
-    queryKey: ['admin-images', id],
-    queryFn: () => adminCatalogApi.adminListImages(id!),
-    enabled: !isNew && !!id,
-  })
+  const productImages = data?.item?.images ?? []
 
   const { data: specs } = useQuery({
     queryKey: ['admin-specs', id],
@@ -127,13 +123,12 @@ export function AdminProductEditPage() {
 
   const createImageMutation = useMutation({
     mutationFn: () =>
-      adminCatalogApi.adminCreateImage({
-        products_id: id!,
-        url: imageUrl,
-        is_main: !(images?.items?.length),
+      adminCatalogApi.adminUpdateProduct({
+        guid: id!,
+        images: [...productImages, imageUrl.trim()],
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin-images', id] })
+      void queryClient.invalidateQueries({ queryKey: ['admin-product', id] })
       setImageUrl('')
       toast.success('Image added')
     },
@@ -292,10 +287,10 @@ export function AdminProductEditPage() {
           <section className="rounded-2xl border border-brand-gray-100 bg-brand-white p-6">
             <h2 className="mb-4 text-xl font-bold">Images</h2>
             <ul className="mb-4 space-y-2 text-sm">
-              {(images?.items ?? []).map((img) => (
-                <li key={img.guid} className="flex items-center gap-3">
-                  <img src={img.url} alt="" className="h-12 w-12 rounded object-cover" />
-                  <span className="truncate">{img.url}</span>
+              {productImages.map((url) => (
+                <li key={url} className="flex items-center gap-3">
+                  <img src={url} alt="" className="h-12 w-12 rounded object-cover" />
+                  <span className="truncate">{url}</span>
                 </li>
               ))}
             </ul>

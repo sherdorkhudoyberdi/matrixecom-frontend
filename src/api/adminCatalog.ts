@@ -5,7 +5,6 @@ import type {
   Category,
   PaginatedResult,
   ProductDetail,
-  ProductImage,
   ProductSpecification,
   ProductVariant,
 } from '@/types/api'
@@ -85,19 +84,6 @@ export function adminCreateSpec(payload: Partial<ProductSpecification> & { produ
 
 export function adminDeleteSpec(guid: string) {
   return callMethod<{ success: boolean }>('admin_product_specifications_delete', { guid })
-}
-
-// Images
-export function adminListImages(products_id: string) {
-  return callMethod<{ items: ProductImage[] }>('admin_product_images_list', { products_id })
-}
-
-export function adminCreateImage(payload: Partial<ProductImage> & { products_id: string }) {
-  return callMethod<{ item: ProductImage }>('admin_product_images_create', payload)
-}
-
-export function adminDeleteImage(guid: string) {
-  return callMethod<{ success: boolean }>('admin_product_images_delete', { guid })
 }
 
 // Variants

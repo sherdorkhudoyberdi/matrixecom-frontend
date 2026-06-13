@@ -56,8 +56,7 @@ export function ProductPage() {
   const attributeNames = useMemo(() => getAttributeNames(variants), [variants])
 
   useEffect(() => {
-    const img =
-      variantImage(selectedVariant, product?.images?.[0]?.url) ?? product?.images?.[0]?.url
+    const img = variantImage(selectedVariant, product?.images?.[0]) ?? product?.images?.[0]
     setActiveImage(img)
   }, [selectedVariant, product])
 
@@ -110,8 +109,8 @@ export function ProductPage() {
           </div>
           <div className="flex gap-2 overflow-x-auto">
             {(selectedVariant?.images?.length
-              ? selectedVariant.images.map((i) => i.image)
-              : product.images?.map((i) => i.url) ?? []
+              ? selectedVariant.images
+              : product.images ?? []
             ).map((url) => (
               <button
                 key={url}
