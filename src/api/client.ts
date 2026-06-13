@@ -38,17 +38,26 @@ export function clearTokens() {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
-function buildHeaders(accessToken?: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
+function buildHeaders(): Record<string, string> {
+  return {
     'Content-Type': 'application/json',
     'environment-id': ENVIRONMENT_ID,
     'x-api-key': APP_ID,
     Authorization: 'API-KEY',
   }
-  if (accessToken) {
-    headers['X-Access-Token'] = accessToken
+}
+
+function buildRequestBody(method: string, objectData: object, accessToken?: string | null) {
+  return {
+    auth: accessToken
+      ? { type: 'Bearer', data: { access_token: accessToken } }
+      : { type: 'API-KEY', data: {} },
+    data: {
+      method,
+      object_data: objectData,
+      ...(accessToken ? { access_token: accessToken } : {}),
+    },
   }
-  return headers
 }
 
 type RawJson = Record<string, unknown>
@@ -112,12 +121,9 @@ async function refreshAccessToken(): Promise<string | null> {
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: buildHeaders(),
-          body: JSON.stringify({
-            data: {
-              method: 'user_refresh',
-              object_data: { refresh_token: refreshToken },
-            },
-          }),
+          body: JSON.stringify(
+            buildRequestBody('user_refresh', { refresh_token: refreshToken }),
+          ),
         })
 
         const json = (await response.json()) as RawJson
@@ -164,13 +170,8 @@ export async function callMethod<T>(
 
   const response = await fetch(API_URL, {
     method: 'POST',
-    headers: buildHeaders(accessToken),
-    body: JSON.stringify({
-      data: {
-        method,
-        object_data: objectData,
-      },
-    }),
+    headers: buildHeaders(),
+    body: JSON.stringify(buildRequestBody(method, objectData, accessToken)),
   })
 
   if (response.status === 401 && auth && retry) {
