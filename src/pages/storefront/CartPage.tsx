@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import { useAuth } from '@/context/AuthContext'
 import { formatPrice } from '@/lib/format'
+import { stockLabel } from '@/lib/stock'
 import { getErrorMessage } from '@/lib/utils'
+import type { Cart } from '@/types/api'
 
 export function CartPage() {
   const { isAuthenticated } = useAuth()
@@ -19,22 +21,58 @@ export function CartPage() {
     enabled: isAuthenticated,
   })
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cart'] })
-
   const updateMutation = useMutation({
     mutationFn: ({ guid, quantity }: { guid: string; quantity: number }) =>
       cartApi.updateCartItem(guid, quantity),
-    onSuccess: invalidate,
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onMutate: async ({ guid, quantity }) => {
+      await queryClient.cancelQueries({ queryKey: ['cart'] })
+      const previous = queryClient.getQueryData<Cart>(['cart'])
+      if (previous) {
+        queryClient.setQueryData(['cart'], cartApi.applyCartQuantity(previous, guid, quantity))
+      }
+      return { previous }
+    },
+    onSuccess: (result, { guid }) => {
+      queryClient.setQueryData<Cart>(['cart'], (current) =>
+        current ? cartApi.mergeCartItemUpdate(current, guid, result) : current,
+      )
+    },
+    onError: (err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['cart'], context.previous)
+      }
+      toast.error(getErrorMessage(err))
+    },
   })
 
   const removeMutation = useMutation({
     mutationFn: (guid: string) => cartApi.removeCartItem(guid),
-    onSuccess: () => {
-      invalidate()
+    onMutate: async (guid) => {
+      await queryClient.cancelQueries({ queryKey: ['cart'] })
+      const previous = queryClient.getQueryData<Cart>(['cart'])
+      if (previous) {
+        queryClient.setQueryData(['cart'], cartApi.applyCartRemoval(previous, guid))
+      }
+      return { previous }
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<Cart>(['cart'], (current) =>
+        current
+          ? {
+              ...current,
+              item_count: result.item_count ?? current.item_count,
+              grand_total: result.grand_total ?? current.grand_total,
+            }
+          : current,
+      )
       toast.success('Item removed')
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: (err, _guid, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['cart'], context.previous)
+      }
+      toast.error(getErrorMessage(err))
+    },
   })
 
   if (!isAuthenticated) {
@@ -67,65 +105,81 @@ export function CartPage() {
       ) : (
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
-            {items.map((item) => (
-              <div
-                key={item.guid}
-                className="flex gap-4 rounded-2xl border border-brand-gray-100 bg-brand-white p-4"
-              >
-                <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-brand-gray-50">
-                  {item.image ? (
-                    <img src={item.image} alt="" className="h-full w-full object-cover" />
-                  ) : null}
-                </div>
-                <div className="flex flex-1 flex-col justify-between">
-                  <div>
-                    <h3 className="font-semibold">{item.product_name}</h3>
-                    {item.variant_label ? (
-                      <p className="text-sm text-brand-gray-600">{item.variant_label}</p>
+            {items.map((item) => {
+              const maxQty = item.max_quantity ?? item.stock_quantity ?? item.quantity
+              const atMax = item.quantity >= maxQty
+              const stockText = stockLabel(item.stock_quantity, item.quantity)
+
+              return (
+                <div
+                  key={item.guid}
+                  className="flex gap-4 rounded-2xl border border-brand-gray-100 bg-brand-white p-4"
+                >
+                  <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-brand-gray-50">
+                    {item.image ? (
+                      <img src={item.image} alt="" className="h-full w-full object-cover" />
                     ) : null}
-                    <p className="mt-1 font-bold">{formatPrice(item.unit_price)}</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center rounded-full border border-brand-gray-200">
+                  <div className="flex flex-1 flex-col justify-between">
+                    <div>
+                      <h3 className="font-semibold">{item.product_name}</h3>
+                      {item.variant_label ? (
+                        <p className="text-sm text-brand-gray-600">{item.variant_label}</p>
+                      ) : null}
+                      {stockText ? (
+                        <p className={`text-sm ${atMax ? 'text-brand-accent' : 'text-brand-gray-500'}`}>
+                          {stockText}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 font-bold">{formatPrice(item.unit_price)}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center rounded-full border border-brand-gray-200">
+                        <button
+                          type="button"
+                          className="p-2"
+                          onClick={() =>
+                            updateMutation.mutate({
+                              guid: item.guid,
+                              quantity: Math.max(1, item.quantity - 1),
+                            })
+                          }
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-8 text-center text-sm font-semibold">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          className="p-2 disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={atMax}
+                          onClick={() => {
+                            if (atMax) {
+                              toast.error(`Only ${maxQty} available in stock`)
+                              return
+                            }
+                            updateMutation.mutate({
+                              guid: item.guid,
+                              quantity: item.quantity + 1,
+                            })
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        className="p-2"
-                        onClick={() =>
-                          updateMutation.mutate({
-                            guid: item.guid,
-                            quantity: Math.max(1, item.quantity - 1),
-                          })
-                        }
+                        onClick={() => removeMutation.mutate(item.guid)}
+                        className="rounded-full p-2 text-brand-accent hover:bg-brand-accent/10"
                       >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-8 text-center text-sm font-semibold">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        className="p-2"
-                        onClick={() =>
-                          updateMutation.mutate({
-                            guid: item.guid,
-                            quantity: item.quantity + 1,
-                          })
-                        }
-                      >
-                        <Plus className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeMutation.mutate(item.guid)}
-                      className="rounded-full p-2 text-brand-accent hover:bg-brand-accent/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           <div className="h-fit rounded-2xl border border-brand-gray-100 bg-brand-gray-50 p-6">

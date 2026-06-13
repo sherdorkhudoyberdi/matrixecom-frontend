@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatNumber, formatPrice } from '@/lib/format'
+import { formatDate, formatNumber, formatPrice } from '@/lib/format'
+import type { ReportRow } from '@/types/api'
 
 const REPORT_TABS = [
   { key: 'sales', label: 'Sales', fn: reportsApi.adminReportsSales },
@@ -25,6 +26,92 @@ const REPORT_TABS = [
   { key: 'reviews', label: 'Reviews', fn: reportsApi.adminReportsReviews },
   { key: 'revenue', label: 'Revenue by Category', fn: reportsApi.adminReportsRevenueByCategory },
 ] as const
+
+type ReportTabKey = (typeof REPORT_TABS)[number]['key']
+
+const REPORT_CHARTS: Record<
+  ReportTabKey,
+  {
+    nameKeys: string[]
+    valueKey: string
+    valueLabel: string
+    format: 'money' | 'number'
+    maxValue?: number
+  }
+> = {
+  sales: { nameKeys: ['period'], valueKey: 'revenue', valueLabel: 'Revenue', format: 'money' },
+  products: {
+    nameKeys: ['product_name'],
+    valueKey: 'revenue',
+    valueLabel: 'Revenue',
+    format: 'money',
+  },
+  orders: {
+    nameKeys: ['created_at', 'status', 'orders_id'],
+    valueKey: 'total',
+    valueLabel: 'Order total',
+    format: 'money',
+  },
+  customers: {
+    nameKeys: ['login', 'users_id'],
+    valueKey: 'total_spent',
+    valueLabel: 'Total spent',
+    format: 'money',
+  },
+  stock: {
+    nameKeys: ['sku', 'product_name'],
+    valueKey: 'stock_quantity',
+    valueLabel: 'Stock quantity',
+    format: 'number',
+  },
+  reviews: {
+    nameKeys: ['product_name', 'login'],
+    valueKey: 'rating',
+    valueLabel: 'Rating',
+    format: 'number',
+    maxValue: 5,
+  },
+  revenue: {
+    nameKeys: ['category_name'],
+    valueKey: 'revenue',
+    valueLabel: 'Revenue',
+    format: 'money',
+  },
+}
+
+function reportRowLabel(row: ReportRow, nameKeys: string[]): string {
+  for (const key of nameKeys) {
+    const raw = row[key]
+    if (raw == null || String(raw).trim() === '') continue
+
+    if (key === 'created_at' || key.endsWith('_at')) {
+      return formatDate(String(raw))
+    }
+    if (key === 'orders_id' || key === 'users_id') {
+      const id = String(raw)
+      return id.length > 8 ? `${key === 'orders_id' ? 'Order' : 'User'} …${id.slice(-6)}` : id
+    }
+    return String(raw)
+  }
+  return '—'
+}
+
+function buildChartData(rows: ReportRow[], tab: ReportTabKey) {
+  const config = REPORT_CHARTS[tab]
+
+  return rows
+    .map((row) => ({
+      name: reportRowLabel(row, config.nameKeys),
+      value: Number(row[config.valueKey] ?? 0),
+    }))
+    .filter((point) => point.value > 0 || tab === 'reviews')
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 25)
+}
+
+function formatChartValue(value: number, format: 'money' | 'number') {
+  return format === 'money' ? formatPrice(value) : formatNumber(value)
+}
 
 export function AdminReportsPage() {
   const [tab, setTab] = useState<(typeof REPORT_TABS)[number]['key']>('sales')
@@ -45,19 +132,9 @@ export function AdminReportsPage() {
   })
 
   const rows = data?.rows ?? []
-  const chartData = rows.map((row) => ({
-    name: String(
-      row.period ??
-        row.product_name ??
-        row.name ??
-        row.label ??
-        row.category_name ??
-        '—',
-    ),
-    revenue: Number(row.revenue ?? 0),
-    orders: Number(row.orders ?? row.order_count ?? 0),
-    units: Number(row.units ?? row.units_sold ?? 0),
-  }))
+  const chartConfig = REPORT_CHARTS[tab]
+  const chartData = buildChartData(rows, tab)
+  const showChart = chartData.length > 0
 
   return (
     <div className="space-y-6">
@@ -95,15 +172,33 @@ export function AdminReportsPage() {
         <Spinner />
       ) : (
         <>
-          {chartData.length > 0 ? (
+          {showChart ? (
             <div className="h-80 rounded-2xl border border-brand-gray-100 bg-brand-white p-4">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="revenue" fill="#000" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    domain={chartConfig.maxValue ? [0, chartConfig.maxValue] : ['auto', 'auto']}
+                    tickFormatter={(value) =>
+                      chartConfig.format === 'money'
+                        ? formatNumber(Number(value))
+                        : String(value)
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      formatChartValue(Number(value ?? 0), chartConfig.format),
+                      chartConfig.valueLabel,
+                    ]}
+                  />
+                  <Bar
+                    dataKey="value"
+                    name={chartConfig.valueLabel}
+                    fill="#000"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AdminLayout } from '@/components/layout/AdminLayout'
 import { StoreLayout } from '@/components/layout/StoreLayout'
 import { Spinner } from '@/components/ui/Spinner'
@@ -61,8 +61,17 @@ function RoleGuard({
 
 function ClientGuard({ children }: { children: React.ReactNode }) {
   const { roleId, isLoading, isAuthenticated } = useAuth()
+  const location = useLocation()
   if (isLoading) return <Spinner className="min-h-[50vh]" />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: `${location.pathname}${location.search}` }}
+      />
+    )
+  }
   if (roleId !== ROLES.Client) return <Navigate to="/" replace />
   return <>{children}</>
 }

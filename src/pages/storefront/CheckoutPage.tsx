@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext'
 import { formatPrice } from '@/lib/format'
 import { ROLES } from '@/lib/roles'
 import { getErrorMessage } from '@/lib/utils'
+import { normalizePhone, phoneHint, validatePhone } from '@/lib/validation'
 
 export function CheckoutPage() {
   const { isAuthenticated, user, roleId } = useAuth()
@@ -23,6 +24,11 @@ export function CheckoutPage() {
     delivery_address: '',
     comment: '',
   })
+  const [errors, setErrors] = useState<{
+    recipient_name?: string
+    phone?: string
+    delivery_address?: string
+  }>({})
 
   const { data: cart, isLoading } = useQuery({
     queryKey: ['cart'],
@@ -60,6 +66,15 @@ export function CheckoutPage() {
       toast.error('Only customer accounts can place orders')
       return
     }
+
+    const nextErrors = {
+      recipient_name: form.recipient_name.trim() ? undefined : 'Recipient name is required',
+      phone: validatePhone(form.phone, { required: true }),
+      delivery_address: form.delivery_address.trim() ? undefined : 'Delivery address is required',
+    }
+    setErrors(nextErrors)
+    if (nextErrors.recipient_name || nextErrors.phone || nextErrors.delivery_address) return
+
     try {
       const freshCart = await queryClient.fetchQuery({
         queryKey: ['cart'],
@@ -70,7 +85,10 @@ export function CheckoutPage() {
         navigate('/catalog')
         return
       }
-      const checkoutResult = await checkoutMutation.mutateAsync(form)
+      const checkoutResult = await checkoutMutation.mutateAsync({
+        ...form,
+        phone: normalizePhone(form.phone),
+      })
       await payMutation.mutateAsync(checkoutResult.order.guid)
       await queryClient.invalidateQueries({ queryKey: ['cart'] })
       toast.success('Order placed successfully!')
@@ -90,21 +108,38 @@ export function CheckoutPage() {
           <Input
             label="Recipient name"
             value={form.recipient_name}
-            onChange={(e) => setForm((f) => ({ ...f, recipient_name: e.target.value }))}
-            required
+            onChange={(e) => {
+              setForm((f) => ({ ...f, recipient_name: e.target.value }))
+              if (errors.recipient_name) {
+                setErrors((prev) => ({ ...prev, recipient_name: undefined }))
+              }
+            }}
+            error={errors.recipient_name}
           />
           <Input
             label="Phone"
             type="tel"
             value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            required
+            onChange={(e) => {
+              setForm((f) => ({ ...f, phone: e.target.value }))
+              if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }))
+            }}
+            error={errors.phone}
+            placeholder="+998901234567"
           />
+          {!errors.phone ? (
+            <p className="-mt-2 text-xs text-brand-gray-500">{phoneHint}</p>
+          ) : null}
           <Input
             label="Delivery address"
             value={form.delivery_address}
-            onChange={(e) => setForm((f) => ({ ...f, delivery_address: e.target.value }))}
-            required
+            onChange={(e) => {
+              setForm((f) => ({ ...f, delivery_address: e.target.value }))
+              if (errors.delivery_address) {
+                setErrors((prev) => ({ ...prev, delivery_address: undefined }))
+              }
+            }}
+            error={errors.delivery_address}
           />
           <div>
             <label className="mb-1.5 block text-sm font-medium text-brand-gray-600">

@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext'
 import { formatDate, formatPrice, fullName } from '@/lib/format'
 import { roleLabel } from '@/lib/roles'
 import { getErrorMessage } from '@/lib/utils'
+import { normalizePhone, phoneHint, validatePhone } from '@/lib/validation'
 
 export function ProfilePage() {
   const { isAuthenticated, user, roleId, refreshProfile } = useAuth()
@@ -21,6 +22,7 @@ export function ProfilePage() {
     last_name: user?.last_name ?? '',
     phone: user?.phone ?? '',
   })
+  const [phoneError, setPhoneError] = useState<string>()
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile'],
@@ -72,7 +74,13 @@ export function ProfilePage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            updateMutation.mutate(form)
+            const nextPhoneError = validatePhone(form.phone, { required: true })
+            setPhoneError(nextPhoneError)
+            if (nextPhoneError) return
+            updateMutation.mutate({
+              ...form,
+              phone: normalizePhone(form.phone),
+            })
           }}
           className="space-y-4 rounded-2xl border border-brand-gray-100 bg-brand-white p-6"
         >
@@ -95,9 +103,18 @@ export function ProfilePage() {
           </div>
           <Input
             label="Phone"
+            type="tel"
             value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, phone: e.target.value }))
+              if (phoneError) setPhoneError(undefined)
+            }}
+            error={phoneError}
+            placeholder="+998901234567"
           />
+          {!phoneError ? (
+            <p className="-mt-2 text-xs text-brand-gray-500">{phoneHint}</p>
+          ) : null}
           <Button type="submit" loading={updateMutation.isPending}>
             Save Changes
           </Button>

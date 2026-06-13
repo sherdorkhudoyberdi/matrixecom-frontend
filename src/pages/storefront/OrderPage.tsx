@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import * as ordersApi from '@/api/orders'
 import * as paymentApi from '@/api/payment'
@@ -10,7 +11,20 @@ import { Input } from '@/components/ui/Input'
 import { Spinner } from '@/components/ui/Spinner'
 import { formatDateTime, formatPrice } from '@/lib/format'
 import { getErrorMessage } from '@/lib/utils'
-import { useState } from 'react'
+import type { OrderItem } from '@/types/api'
+
+function uniqueOrderProductIds(items: OrderItem[]) {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const item of items) {
+    const productId = item.products_id
+    if (productId && !seen.has(productId)) {
+      seen.add(productId)
+      ids.push(productId)
+    }
+  }
+  return ids
+}
 
 function statusTone(status?: string) {
   switch (status) {
@@ -30,6 +44,7 @@ function statusTone(status?: string) {
 
 export function OrderPage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', products_id: '' })
 
   const { data, isLoading, refetch } = useQuery({
@@ -37,6 +52,25 @@ export function OrderPage() {
     queryFn: () => ordersApi.getOrder(id!),
     enabled: !!id,
   })
+
+  const orderProductIds = useMemo(
+    () => uniqueOrderProductIds(data?.order?.items ?? []),
+    [data?.order?.items],
+  )
+
+  useEffect(() => {
+    if (!data?.order || data.order.status !== 'delivered' || orderProductIds.length === 0) return
+
+    const fromUrl = searchParams.get('products_id') ?? searchParams.get('product')
+    const preferredProductId =
+      fromUrl && orderProductIds.includes(fromUrl) ? fromUrl : orderProductIds[0]
+
+    setReviewForm((current) =>
+      current.products_id === preferredProductId
+        ? current
+        : { ...current, products_id: preferredProductId },
+    )
+  }, [data?.order?.guid, data?.order?.status, orderProductIds, searchParams])
 
   const { data: timeline } = useQuery({
     queryKey: ['order-timeline', id],
@@ -63,7 +97,11 @@ export function OrderPage() {
       }),
     onSuccess: () => {
       toast.success('Review submitted')
-      setReviewForm({ rating: 5, comment: '', products_id: '' })
+      setReviewForm({
+        rating: 5,
+        comment: '',
+        products_id: orderProductIds[0] ?? '',
+      })
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
@@ -120,12 +158,18 @@ export function OrderPage() {
                   }
                   className="h-11 w-full rounded-full border px-4 text-sm"
                 >
-                  <option value="">Select product</option>
-                  {(order.items ?? []).map((item) => (
-                    <option key={item.guid} value={item.products_id ?? ''}>
-                      {item.product_name}
-                    </option>
-                  ))}
+                  {orderProductIds.length === 0 ? (
+                    <option value="">No products in this order</option>
+                  ) : (
+                    orderProductIds.map((productId) => {
+                      const item = (order.items ?? []).find((row) => row.products_id === productId)
+                      return (
+                        <option key={productId} value={productId}>
+                          {item?.product_name ?? 'Product'}
+                        </option>
+                      )
+                    })
+                  )}
                 </select>
                 <Input
                   label="Rating (1-5)"

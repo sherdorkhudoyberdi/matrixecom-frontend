@@ -86,11 +86,29 @@ export interface VariantAttribute {
   value: string
 }
 
+export interface CatalogAttribute {
+  guid: string
+  name: string
+}
+
+export interface AttributeValue {
+  guid: string
+  attributes_id: string
+  value: string
+}
+
+export interface VariantAttributeValueLink {
+  guid: string
+  product_variants_id: string
+  attribute_values_id: string
+}
+
 export interface ProductVariant {
   guid: string
   sku?: string
   price: number
   compare_at_price?: number
+  cost_price?: number
   stock_quantity?: number
   in_stock?: boolean
   is_active?: boolean
@@ -158,7 +176,10 @@ export interface CartItem {
   main_image?: string
   image?: string
   attributes?: Array<{ name?: string; value?: string }>
+  in_stock?: boolean
   stock_quantity?: number
+  stock_remaining?: number
+  max_quantity?: number
 }
 
 export interface Cart {

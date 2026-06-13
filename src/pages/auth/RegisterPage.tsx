@@ -1,14 +1,25 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useAuth } from '@/context/AuthContext'
+import { finishAuthRedirect } from '@/lib/pendingAuth'
 import { getErrorMessage } from '@/lib/utils'
+import {
+  normalizePhone,
+  passwordHint,
+  phoneHint,
+  validateNewPassword,
+  validatePhone,
+} from '@/lib/validation'
 
 export function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     login: '',
@@ -17,14 +28,34 @@ export function RegisterPage() {
     first_name: '',
     last_name: '',
   })
+  const [errors, setErrors] = useState<{
+    login?: string
+    password?: string
+    phone?: string
+  }>({})
+
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const nextErrors = {
+      login: form.login.trim() ? undefined : 'Email or login is required',
+      password: validateNewPassword(form.password),
+      phone: validatePhone(form.phone, { required: true }),
+    }
+    setErrors(nextErrors)
+    if (nextErrors.login || nextErrors.password || nextErrors.phone) return
+
     setLoading(true)
     try {
-      await register(form)
+      const tokens = await register({
+        ...form,
+        login: form.login.trim(),
+        phone: normalizePhone(form.phone),
+      })
       toast.success('Account created!')
-      navigate('/')
+      await finishAuthRedirect(tokens.role_id, navigate, queryClient, returnTo)
     } catch (err) {
       toast.error(getErrorMessage(err))
     } finally {
@@ -56,30 +87,51 @@ export function RegisterPage() {
             label="Email or login"
             type="text"
             value={form.login}
-            onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))}
-            required
+            onChange={(e) => {
+              setForm((f) => ({ ...f, login: e.target.value }))
+              if (errors.login) setErrors((prev) => ({ ...prev, login: undefined }))
+            }}
+            error={errors.login}
           />
           <Input
             label="Phone"
             type="tel"
             value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, phone: e.target.value }))
+              if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }))
+            }}
+            error={errors.phone}
+            placeholder="+998901234567"
           />
+          {!errors.phone ? (
+            <p className="-mt-2 text-xs text-brand-gray-500">{phoneHint}</p>
+          ) : null}
           <Input
             label="Password"
             type="password"
             value={form.password}
-            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            required
-            minLength={6}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, password: e.target.value }))
+              if (errors.password) setErrors((prev) => ({ ...prev, password: undefined }))
+            }}
+            error={errors.password}
+            autoComplete="new-password"
           />
+          {!errors.password ? (
+            <p className="-mt-2 text-xs text-brand-gray-500">{passwordHint}</p>
+          ) : null}
           <Button type="submit" className="w-full" loading={loading}>
             Create Account
           </Button>
         </form>
         <p className="text-center text-sm text-brand-gray-600">
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-brand-black underline">
+          <Link
+            to="/login"
+            state={returnTo ? { returnTo } : undefined}
+            className="font-semibold text-brand-black underline"
+          >
             Sign in
           </Link>
         </p>
