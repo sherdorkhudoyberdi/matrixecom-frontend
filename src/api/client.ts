@@ -43,11 +43,10 @@ function buildHeaders(accessToken?: string | null): Record<string, string> {
     'Content-Type': 'application/json',
     'environment-id': ENVIRONMENT_ID,
     'x-api-key': APP_ID,
+    Authorization: 'API-KEY',
   }
   if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`
-  } else {
-    headers.Authorization = 'API-KEY'
+    headers['X-Access-Token'] = accessToken
   }
   return headers
 }
