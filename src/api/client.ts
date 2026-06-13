@@ -7,6 +7,7 @@ const APP_ID = import.meta.env.VITE_APP_ID ?? UCODE_APP_ID
 
 const ACCESS_TOKEN_KEY = 'matrixecom_access_token'
 const REFRESH_TOKEN_KEY = 'matrixecom_refresh_token'
+const USER_ID_KEY = 'matrixecom_user_id'
 
 export class ApiClientError extends Error {
   status: number
@@ -28,34 +29,39 @@ export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
-export function setTokens(access: string, refresh: string) {
+export function getUserId(): string | null {
+  return localStorage.getItem(USER_ID_KEY)
+}
+
+export function setTokens(access: string, refresh: string, userId?: string) {
   localStorage.setItem(ACCESS_TOKEN_KEY, access)
   localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
+  if (userId) {
+    localStorage.setItem(USER_ID_KEY, userId)
+  }
 }
 
 export function clearTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(USER_ID_KEY)
 }
 
-function buildHeaders(): Record<string, string> {
+function buildHeaders(accessToken?: string | null): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     'environment-id': ENVIRONMENT_ID,
     'x-api-key': APP_ID,
-    Authorization: 'API-KEY',
+    Authorization: accessToken ? `Bearer ${accessToken}` : 'API-KEY',
   }
 }
 
-function buildRequestBody(method: string, objectData: object, accessToken?: string | null) {
+function buildRequestBody(method: string, objectData: object, userId?: string | null) {
   return {
-    auth: accessToken
-      ? { type: 'Bearer', data: { access_token: accessToken } }
-      : { type: 'API-KEY', data: {} },
     data: {
       method,
+      ...(userId ? { user_id: userId } : {}),
       object_data: objectData,
-      ...(accessToken ? { access_token: accessToken } : {}),
     },
   }
 }
@@ -122,7 +128,10 @@ async function refreshAccessToken(): Promise<string | null> {
           method: 'POST',
           headers: buildHeaders(),
           body: JSON.stringify(
-            buildRequestBody('user_refresh', { refresh_token: refreshToken }),
+            buildRequestBody('user_refresh', {
+              refresh_token: refreshToken,
+              user_id: getUserId() ?? undefined,
+            }),
           ),
         })
 
@@ -136,12 +145,13 @@ async function refreshAccessToken(): Promise<string | null> {
         const payload = parsed.data as Record<string, unknown>
         const access = String(payload.access_token ?? '')
         const refresh = String(payload.refresh_token ?? refreshToken)
+        const user = payload.user as { guid?: string } | undefined
         if (!access) {
           clearTokens()
           return null
         }
 
-        setTokens(access, refresh)
+        setTokens(access, refresh, user?.guid ?? getUserId() ?? undefined)
         return access
       } catch {
         clearTokens()
@@ -167,11 +177,12 @@ export async function callMethod<T>(
 ): Promise<T> {
   const { auth = true, retry = true } = options
   const accessToken = auth ? getAccessToken() : null
+  const userId = auth ? getUserId() : null
 
   const response = await fetch(API_URL, {
     method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(buildRequestBody(method, objectData, accessToken)),
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify(buildRequestBody(method, objectData, userId)),
   })
 
   if (response.status === 401 && auth && retry) {
@@ -186,7 +197,8 @@ export async function callMethod<T>(
   const parsed = unwrapApiPayload(json)
 
   if (!parsed.ok) {
-    throw new ApiClientError(parsed.message, response.status, parsed.code)
+    const err = parsed as { ok: false; message: string; code?: string }
+    throw new ApiClientError(err.message, response.status, err.code)
   }
   if (!response.ok) {
     throw new ApiClientError('Request failed', response.status)

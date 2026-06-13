@@ -26,7 +26,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 function applyAuth(tokens: AuthTokens, setUser: (u: User) => void, setRoleId: (r: string) => void) {
-  setTokens(tokens.access_token, tokens.refresh_token)
+  setTokens(tokens.access_token, tokens.refresh_token, tokens.user.guid)
   setUser(tokens.user)
   setRoleId(tokens.role_id)
 }
