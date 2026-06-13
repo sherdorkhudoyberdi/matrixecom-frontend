@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Satoshi', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-black: #000000;
+  --color-brand-white: #ffffff;
+  --color-brand-gray-50: #f2f0f1;
+  --color-brand-gray-100: #e8e6e7;
+  --color-brand-gray-200: #d1ced0;
+  --color-brand-gray-400: #8b8589;
+  --color-brand-gray-600: #4d4a4c;
+  --color-brand-gray-900: #1a1819;
+  --color-brand-accent: #ff3333;
+  --color-brand-success: #01ab31;
+  --color-brand-warning: #ffc633;
+}
+
+@layer base {
+  * {
+    @apply border-brand-gray-200;
+  }
+
+  body {
+    @apply bg-brand-white font-sans text-brand-black antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .container-shop {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .pill {
+    @apply rounded-full;
+  }
+
+  .heading-xl {
+    @apply text-4xl font-black uppercase tracking-tight md:text-5xl;
+  }
+
+  .heading-lg {
+    @apply text-3xl font-black uppercase tracking-tight md:text-4xl;
+  }
+}

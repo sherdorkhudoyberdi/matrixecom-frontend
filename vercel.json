@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/ucode",
+      "destination": "https://api.admin.u-code.io/v2/invoke_function/matrixecom-atrixcom?project-id=c34cff52-2303-4ce9-9995-b687beaf041a"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
